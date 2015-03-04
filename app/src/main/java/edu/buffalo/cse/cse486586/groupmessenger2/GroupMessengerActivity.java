@@ -1,11 +1,29 @@
 package edu.buffalo.cse.cse486586.groupmessenger2;
 
 import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.telephony.TelephonyManager;
 import android.text.method.ScrollingMovementMethod;
+import android.util.Log;
 import android.view.Menu;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.UnknownHostException;
 /**
  * GroupMessengerActivity is the main Activity for the assignment.
  *
@@ -65,28 +83,16 @@ public class GroupMessengerActivity extends Activity {
             ServerSocket serverSocket = new ServerSocket(SERVER_PORT);
             new ServerTask().executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, serverSocket);
         } catch (IOException e) {
-            /*
-             * Log is a good way to debug your code. LogCat prints out all the messages that
-             * Log class writes.
-             *
-             * Please read http://developer.android.com/tools/debugging/debugging-projects.html
-             * and http://developer.android.com/tools/debugging/debugging-log.html
-             * for more information on debugging.
-             */
             Log.e(TAG, "Can't create a ServerSocket");
             return;
         }
 
-        mUri = buildUri("content", "edu.buffalo.cse.cse486586.groupmessenger1.provider");
+        mUri = buildUri("content", "edu.buffalo.cse.cse486586.groupmessenger2.provider");
         mContentResolver = getContentResolver();
 
         final EditText editText = (EditText) findViewById(R.id.editText1);
         final Button sendButton = (Button) findViewById(R.id.button4);
-        /*
-         * TODO: You need to register and implement an OnClickListener for the "Send" button.
-         * In your implementation you need to get the message from the input box (EditText)
-         * and send it to other AVDs.
-         */
+
         sendButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -95,14 +101,10 @@ public class GroupMessengerActivity extends Activity {
                 editText.setText(""); // This is one way to reset the input box.
                 TextView localTextView = (TextView) findViewById(R.id.textView1);
                 localTextView.append("\t" + msg); // This is one way to display a string.
-//                TextView remoteTextView = (TextView) findViewById(R.id.remote_text_display);
-//                remoteTextView.append("\n");
 
                 /*
                  * Note that the following AsyncTask uses AsyncTask.SERIAL_EXECUTOR, not
-                 * AsyncTask.THREAD_POOL_EXECUTOR as the above ServerTask does. To understand
-                 * the difference, please take a look at
-                 * http://developer.android.com/reference/android/os/AsyncTask.html
+                 * AsyncTask.THREAD_POOL_EXECUTOR as the above ServerTask does.
                  */
                 new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, msg, REMOTE_PORT0);
                 new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, msg, REMOTE_PORT1);
@@ -124,11 +126,6 @@ public class GroupMessengerActivity extends Activity {
     /**
      * ServerTask is an AsyncTask that should handle incoming messages. It is created by
      * ServerTask.executeOnExecutor() call in SimpleMessengerActivity.
-     * <p/>
-     * Please make sure you understand how AsyncTask works by reading
-     * http://developer.android.com/reference/android/os/AsyncTask.html
-     *
-     * @author stevko
      */
     private class ServerTask extends AsyncTask<ServerSocket, String, Void> {
 
@@ -137,7 +134,7 @@ public class GroupMessengerActivity extends Activity {
             ServerSocket serverSocket = sockets[0];
             try {
                 /*
-                 * TODO: Fill in your server code that receives messages and passes them
+                 * Server code that receives messages and passes them
                  * to onProgressUpdate().
                  */
                 while (true) {
@@ -165,8 +162,6 @@ public class GroupMessengerActivity extends Activity {
              * The following code displays what is received in doInBackground().
              */
             String strReceived = strings[0].trim();
-//            TextView remoteTextView = (TextView) findViewById(R.id.remote_text_display);
-//            remoteTextView.append(strReceived + "\t\n");
             TextView localTextView = (TextView) findViewById(R.id.textView1);
             localTextView.append(strReceived + "\n");
 
@@ -176,18 +171,6 @@ public class GroupMessengerActivity extends Activity {
              * For more information on file I/O on Android, please take a look at
              * http://developer.android.com/training/basics/data-storage/files.html
              */
-
-//            String filename = "SimpleMessengerOutput";
-//            String string = strReceived + "\n";
-//            FileOutputStream outputStream;
-//
-//            try {
-//                outputStream = openFileOutput(filename, Context.MODE_PRIVATE);
-//                outputStream.write(string.getBytes());
-//                outputStream.close();
-//            } catch (Exception e) {
-//                Log.e(TAG, "File write failed");
-//            }
 
             mContentValues = new ContentValues();
             mContentValues.put(KEY_FIELD, seq++);
@@ -210,11 +193,9 @@ public class GroupMessengerActivity extends Activity {
 
 
     /**
-     * ClientTask is an AsyncTask that should send a string over the network.
-     * It is created by ClientTask.executeOnExecutor() call whenever OnKeyListener.onKey() detects
-     * an enter key press event.
+     * ClientTask is an AsyncTask that sends a string over the network.
+     * It is created by ClientTask.executeOnExecutor() call whenever send button is clicked
      *
-     * @author stevko
      */
     private class ClientTask extends AsyncTask<String, Void, Void> {
 
@@ -222,8 +203,6 @@ public class GroupMessengerActivity extends Activity {
         protected Void doInBackground(String... msgs) {
             try {
                 String remotePort = msgs[1];
-//                if (msgs[1].equals(REMOTE_PORT0))
-//                    remotePort = REMOTE_PORT1;
 
                 Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                         Integer.parseInt(remotePort));
