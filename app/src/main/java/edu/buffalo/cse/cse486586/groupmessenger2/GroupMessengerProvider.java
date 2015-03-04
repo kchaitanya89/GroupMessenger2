@@ -51,7 +51,20 @@ public class GroupMessengerProvider extends ContentProvider {
          * take a look at the code for PA1.
          */
         Log.v("insert", values.toString());
-        return uri;
+        Log.v("insert", values.toString());
+
+        String filename = values.get("key").toString();
+        String string = values.get("value").toString();
+        File file = new File(getContext().getFilesDir(), filename);
+        FileOutputStream outputStream;
+        try {
+            outputStream = new FileOutputStream(file);
+            outputStream.write(string.getBytes());
+            outputStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return Uri.fromFile(file);
     }
 
     @Override
@@ -81,6 +94,23 @@ public class GroupMessengerProvider extends ContentProvider {
          * http://developer.android.com/reference/android/database/MatrixCursor.html
          */
         Log.v("query", selection);
-        return null;
+        MatrixCursor matrixCursor = null;
+        try(InputStreamReader inputStreamReader = new InputStreamReader(new FileInputStream(getContext().getFilesDir().toString()+File.separatorChar+selection));
+            BufferedReader bufferedReader = new BufferedReader(inputStreamReader)) {
+
+            StringBuilder sb = new StringBuilder();
+            String line = null;
+            while ((line = bufferedReader.readLine()) != null) {
+                sb.append(line);
+            }
+
+            String[] columns = new String[]{"key", "value"};
+
+            matrixCursor = new MatrixCursor(columns);
+            matrixCursor.addRow(new Object[]{selection, sb.toString()});
+        }catch(Exception e){
+            e.printStackTrace();
+        }
+        return matrixCursor;
     }
 }
